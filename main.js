@@ -1,64 +1,85 @@
-const express = require("express"), app = express();
-router = require("./routes/index");
-homeController = require("./controllers/homeController"),
-errorController = require("./controllers/errorController"),
-subscribersController = require("./controllers/subscribersController"),
-coursesController = require("./controllers/coursesController"),
-usersController = require("./controllers/usersController"),
-methodOverride = require("method-override"),
-layouts = require("express-ejs-layouts"), mongoose = require("mongoose"),
-passport = require("passport"),
-cookieParser = require("cookie-parser"),
-expressSession = require("express-session"),
-expressValidator = require("express-validator"),
-connectFlash = require("connect-flash"),
-User = require("./models/user");
+"use strict";
 
-mongoose.connect("mongodb://localhost:27017/confetti_cuisine",
-	{useNewUrlParser: true});
+const express = require("express"),
+  app = express(),
+  routes = require("./routes/index"),
+  layouts = require("express-ejs-layouts"),
+  mongoose = require("mongoose"),
+  methodOverride = require("method-override"),
+  expressSession = require("express-session"),
+  cookieParser = require("cookie-parser"),
+  connectFlash = require("connect-flash"),
+  expressValidator = require("express-validator"),
+  passport = require("passport"),
+  errorController = require("./controllers/errorController"),
+  homeController = require("./controllers/homeController"),
+  subscribersController = require("./controllers/subscribersController"),
+  usersController = require("./controllers/usersController"),
+  coursesController = require("./controllers/coursesController"),
+  User = require("./models/user");
+
+  mongoose.Promise = global.Promise;
+
+mongoose.connect(
+  "mongodb://localhost:27017/confetti_cuisine",
+  { useNewUrlParser: true }
+);
+mongoose.set("useCreateIndex", true);
+
+const db = mongoose.connection;
+
+db.once("open", () => {
+  console.log("Successfully connected to MongoDB using Mongoose!");
+});
 
 app.set("port", process.env.PORT || 3000);
 app.set("view engine", "ejs");
-router.use(
-    express.urlencoded({ 
-        extended: false,
-    })
+
+app.use(express.static("public"));
+app.use(layouts);
+app.use(
+  express.urlencoded({
+    extended: false
+  })
 );
 
-router.use(express.json());
+app.use(
+  methodOverride("_method", {
+    methods: ["POST", "GET"]
+  })
+);
 
-router.use(cookieParser("my_passwode"));
-router.use(expressSession({
-	secret: "my_passcode",
-	cookie: {
-		maxAge: 360000
-	},
-	resave: false,
-	saveUninitialized: false
-}));
+app.use(express.json());
+app.use(cookieParser("secret_passcode"));
+app.use(
+  expressSession({
+    secret: "secret_passcode",
+    cookie: {
+      maxAge: 4000000
+    },
+    resave: false,
+    saveUninitialized: false
+  })
+);
 
-router.use(connectFlash());
-
-router.use(passport.initialize());
-router.use(passport.session());
+app.use(passport.initialize());
+app.use(passport.session());
 passport.use(User.createStrategy());
-passport.serializeUser(User.serializeUser);
-passport.deserializeUser(User.deserializeUser);
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
+app.use(connectFlash());
 
-router.use((req, res, next) => {
-	res.locals.flashMessages = req.flash();
-	res.locals.loggedIn = req.isAuthenticated();
-	res.locals.currentUser = req.user;
-	next();
-})
+app.use((req, res, next) => {
+  res.locals.loggedIn = req.isAuthenticated();
+  res.locals.currentUser = req.user;
+  res.locals.flashMessages = req.flash();
+  next();
+});
+app.use(expressValidator());
 
-router.use(express.static("public"));
-router.use(expressValidator()); 
-router.use(layouts);
-app.use(methodOverride("_method", {methods: ["POST", "GET"]}));
-app.use("/", router);
+app.use(app.router);
+routes.initialize(app);
 
 app.listen(app.get("port"), () => {
-    console.log(`Server is running on port ${app.get("port")}`);
-
+  console.log(`Server running at http://localhost:${app.get("port")}`);
 });
